@@ -74,10 +74,11 @@ def get_summary_and_advice(pdf_text, api_key):
         {
             "role": "system",
             "content": (
-                "You are an expert financial advisor. Analyze the detailed bank statement data provided below. "
-                "Focus on monthly trends, recurring subscriptions, and unusual expenses. Categorize expenses into fixed and variable costs. "
-                "Provide specific, actionable advice on budgeting and saving money, including concrete steps and strategies. "
-                "If more details are needed, ask clarifying questions."
+                "You are a highly skilled financial advisor with expertise in personal finance management. "
+                "Analyze the detailed bank statement data provided below. Focus on identifying monthly trends, recurring subscriptions, "
+                "and unusual expenses. Categorize expenses into fixed and variable costs. Provide specific, actionable advice on budgeting, "
+                "saving money, and reducing unnecessary expenses. Offer concrete steps and strategies for improving financial health, "
+                "including tips on managing debt, increasing savings, and optimizing spending. If more details are needed, ask clarifying questions."
             )
         },
         {
@@ -96,25 +97,32 @@ def get_summary_and_advice(pdf_text, api_key):
     )
     return response["choices"][0]["message"]["content"]
 
-def interactive_session(api_key):
+def interactive_session(api_key, structured_summary, pdf_text):
     print("Interactive session started. Type 'exit' to quit.")
+    conversation_history = [
+        {"role": "system", "content": "You are a detailed and specific financial advisor."},
+        {"role": "user", "content": f"Here is a structured summary of key financial figures extracted from my bank statements:\n\n{structured_summary}\n\nBelow is the full raw data from the bank statements:\n\n{pdf_text}"}
+    ]
     while True:
         question = input("You: ")
         if question.strip().lower() == "exit":
             break
+        conversation_history.append({"role": "user", "content": question})
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "You are a detailed and specific financial advisor."},
-                {"role": "user", "content": question}
-            ],
+            messages=conversation_history,
             temperature=0.2,
             max_tokens=1500
         )
-        print("ChatGPT:", response["choices"][0]["message"]["content"])
+        answer = response["choices"][0]["message"]["content"]
+        print("ChatGPT:", answer)
+        conversation_history.append({"role": "assistant", "content": answer})
 
 def main():
     api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        with open("api_key.txt", "r") as file:
+            api_key = file.read().strip()
     if not api_key:
         api_key = input("Enter your OpenAI API key: ").strip()
 
@@ -131,6 +139,7 @@ def main():
 
     print("Sending the bank statements to ChatGPT for analysis...")
     try:
+        structured_summary = preprocess_pdf_text(pdf_text)
         summary_advice = get_summary_and_advice(pdf_text, api_key)
         print("\nSummary and Financial Advice:\n")
         print(summary_advice)
@@ -147,7 +156,7 @@ def main():
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
 
-    interactive_session(api_key)
+    interactive_session(api_key, structured_summary, pdf_text)
 
 if __name__ == "__main__":
     main()
